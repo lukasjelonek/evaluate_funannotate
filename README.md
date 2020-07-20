@@ -18,10 +18,10 @@ Analysed by: Lukas Jelonek
 
 ### P. cubensis
 
-* Reasons: Personal interest, moderate size genome, rna-seq data available
+* Reasons: moderate size genome, rna-seq data available
 
 * Assembly source: https://mycocosm.jgi.doe.gov/Psicub1_1/Psicub1_1.home.html
-* RNA-Seq source: https://www.ebi.ac.uk/ena/browser/view/PRJNA450675
+* RNA-Seq source (bgi-seq): https://www.ebi.ac.uk/ena/browser/view/PRJNA450675
 
 ### funannotate
 
@@ -42,17 +42,21 @@ conda create --prefix <your-installation-target-directory> funannotate
 conda activate --prefix <your-installation-target-directory>
 
 # setup databases
-export FUNANNOTATE_DB= /vol/funant/evaluate_funannotate/funannotate_dbs/
+export FUNANNOTATE_DB=/vol/funant/evaluate_funannotate/funannotate_dbs/
 
 # install database by database as the interpro installation did not work
 # and must be excluded
-for i in merops uniprot dbCAN pfam repeats go mibig busco_outgroups gene2product; do funannotate setup -w -i $i; done
+for i in merops uniprot dbCAN pfam repeats go mibig busco_outgroups gene2product
+do 
+  funannotate setup -w -i $i
+done
 funannotate setup -i busco -b dikarya
 ```
 
 ### Setup of eggnogmapper
 
 ```bash
+conda install eggnog-mapper
 # funannotate had no option to configure the eggnog-mapper database-directory. I added 
 # the possibility to configure the eggnog-mapper database-directory via an env-variable.
 # It now has been merged to eggnog-mapper and should be available in future releases (
