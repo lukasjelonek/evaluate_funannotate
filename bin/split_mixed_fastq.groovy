@@ -49,7 +49,7 @@ void process(String file, String prefix, boolean renumber) {
     String cur_id = null
     input.eachLine{line, number ->
         if ((number-1) % 4 == 0) {
-            Matcher m = line =~ /(.+)[ _](\d+)\/(\d+)$/
+            Matcher m = line =~ /([^.\s]+)(?:\.\d+)?[ _](\d+)\/(\d+)$/
             m.find()
             String id = m.group(1)
             String rn = m.group(2)
