@@ -152,6 +152,9 @@ process train {
   output:
   path "fun/training" 
 
+  when:
+  reads.size() > 0
+
   script:
   // group reads on prefix
   all_reads = reads.groupBy{x -> getFilePrefix(x)}
@@ -192,6 +195,26 @@ process predict {
   """
 }
 
+process predict_protein_evidence_only {
+  input:
+  path contigs 
+  path proteins
+
+  output:
+  path "fun/{training,predict_misc,predict_results}" includeInputs true
+
+  script:
+  options = "--protein_evidence "
+  if (proteins) {
+    options += proteins.join(" ")
+  }
+  options += ' $FUNANNOTATE_DB/uniprot_sprot.fasta'
+  """
+  funannotate predict -i $contigs -o fun --species "${params.species}" ${options} --cpus ${params.cpus} 
+  """
+
+}
+
 process annotate_utrs {
   //conda "${workflow.projectDir}/funannotate-env.yaml"
 
@@ -229,19 +252,42 @@ workflow {
 
   main:
   Channel.fromPath(params.contigs).set{ch_contigs}
-  Channel.fromPath(params.reads).set{ch_reads}
-  Channel.fromPath(params.proteins).set{ch_proteins}
+  if (params.reads)
+    Channel.fromPath(params.reads)
+         .set{ch_reads}
+  else
+    Channel.empty()
+         .set{ch_reads}
+    
+  Channel.fromPath(params.proteins)
+         .set{ch_proteins}
 
+  ch_contigs = ch_contigs.branch {
+    gzipped: it.name.endsWith(".gz")
+    uncompressed: !it.name.endsWith(".gz")
+  }
+  // prepare protein sequences
   ch_proteins = cleanup_proteins(ch_proteins)
-  nxt = gunzip_contigs(ch_contigs) 
+
+  // prepare contigs
+  gunzip_contigs(ch_contigs.gzipped) 
+  ch_contigs = ch_contigs.uncompressed.concat(gunzip_contigs.out)
   if (! params.no_clean)
-    nxt = clean_contigs(nxt)
-  nxt = sort_contigs(nxt)
+    ch_contigs = clean_contigs(ch_contigs)
+  ch_contigs = sort_contigs(ch_contigs)
   if (! params.no_repeat_masking)
-    nxt = mask_contigs(nxt)
+    ch_contigs = mask_contigs(ch_contigs)
+
+  // prepare reads
   if (params.split_single_fastq)
     ch_reads = split_single_fastq(ch_reads)
-  train(nxt, ch_reads.flatten().toList())
-  predict(nxt, train.out, ch_proteins.toList()) | annotate_utrs | annotate_function
+
+  // train if rnaseq data is present
+  train(ch_contigs, ch_reads.flatten().toList())
+
+  // predict 
+  predict(ch_contigs, 
+          train.out.ifEmpty(file("training", type:"dir")), 
+          ch_proteins.toList()) | annotate_utrs | annotate_function
 
 }
