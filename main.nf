@@ -13,10 +13,10 @@
 
 nextflow.preview.dsl = 2
 
-params.contigs = "data/p.cubensis/assembly/Psicub1_1/Psicub1_1_AssemblyScaffolds.fasta.gz"
-params.reads = "data/p.cubensis/rnaseq/**/*.fastq.gz"
-params.proteins = "data/p.cubensis/p.cubensis_extrinsic/ref/*.faa"
-params.species = "Psilocybe cubensis"
+params.contigs = "data/genome.fa"
+params.reads = ""
+params.proteins = "data/extrinsic/*.faa"
+params.species = "Unknown species"
 params.cpus = 10
 params.contigs_minlen = 1000
 params.resultdir = "results"
@@ -195,26 +195,6 @@ process predict {
   """
 }
 
-process predict_protein_evidence_only {
-  input:
-  path contigs 
-  path proteins
-
-  output:
-  path "fun/{training,predict_misc,predict_results}" includeInputs true
-
-  script:
-  options = "--protein_evidence "
-  if (proteins) {
-    options += proteins.join(" ")
-  }
-  options += ' $FUNANNOTATE_DB/uniprot_sprot.fasta'
-  """
-  funannotate predict -i $contigs -o fun --species "${params.species}" ${options} --cpus ${params.cpus} 
-  """
-
-}
-
 process annotate_utrs {
   //conda "${workflow.projectDir}/funannotate-env.yaml"
 
@@ -223,6 +203,9 @@ process annotate_utrs {
 
   output:
   path "fun/{training,predict_misc,predict_results,update_misc,update_results}" includeInputs true
+
+  when:
+  file("fun/training").exists()
 
   script:
   """
@@ -247,6 +230,13 @@ process annotate_function {
   """
 
 }
+
+def preferSecond(first_channel, second_channel) {
+  return first_channel
+    .join(second_channel, remainder:true)
+    .map{[it[0], it[2] ? it[2] : it[1]]}
+}
+
 
 workflow {
 
@@ -288,6 +278,8 @@ workflow {
   // predict 
   predict(ch_contigs, 
           train.out.ifEmpty(file("training", type:"dir")), 
-          ch_proteins.toList()) | annotate_utrs | annotate_function
-
+          ch_proteins.toList())
+  annotate_utrs(predict.out)
+  ch_gene_prediction = preferSecond(predict.out.map{[0,it]}, annotate_utrs.out.map{[0,it]}).map{it[1]}
+  annotate_function(ch_gene_prediction)
 }
