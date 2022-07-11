@@ -273,7 +273,7 @@ workflow {
     ch_reads = split_single_fastq(ch_reads)
 
   // train if rnaseq data is present
-  train(ch_contigs, ch_reads.flatten().toList())
+  train(ch_contigs, ch_reads.flatten().toSortedList())
 
   // predict 
   predict(ch_contigs, 
